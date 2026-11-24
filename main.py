@@ -7,6 +7,7 @@ from google.genai import errors, types
 
 load_dotenv()
 
+# Inicializar cliente (requiere variable de entorno GEMINI_API_KEY en .env)
 client = genai.Client(
     http_options=types.HttpOptions(
         retry_options=types.HttpRetryOptions(attempts=1)
@@ -22,72 +23,101 @@ MODELOS = [
 ]
 modelo_actual_idx = 0
 
+
 # ==============================================================================
-# 1. DEFINICIÓN DEL ENTORNO (<<environment>> EntornoUrbanoTranscaribe)
+# 1. ENTORNO COMPARTIDO (<<environment>> EntornoUrbanoTranscaribe)
 # ==============================================================================
 class EntornoUrbanoTranscaribe:
     def __init__(self):
-        # Estado inicial del entorno
         self.estaciones = {
-            "Estacion_Bazurto": {"aforo": 135, "tiempo_espera_min": 19, "umbral": 100}
+            "Estacion_Bazurto": {"aforo": 140, "tiempo_espera_min": 21.0, "umbral": 100},
+            "Estacion_Delicias": {"aforo": 115, "tiempo_espera_min": 16.5, "umbral": 100},
         }
         self.buses = {
-            "Bus_T101": {"ruta": "T101", "posicion_km": 4.2, "velocidad_kmh": 45, "ocupacion": 90},
-            "Bus_T104": {"ruta": "T101", "posicion_km": 4.05, "velocidad_kmh": 50, "ocupacion": 30}, # A 150m del T101 (Bunching)
-            "Bus_Reserva_01": {"ruta": "Patio", "posicion_km": 0.0, "velocidad_kmh": 0, "ocupacion": 0}
+            "Bus_T101": {"ruta": "T101", "posicion_gps": "Km 4.20", "velocidad_kmh": 42, "estado": "en_ruta"},
+            "Bus_T104": {"ruta": "T101", "posicion_gps": "Km 4.08", "velocidad_kmh": 48, "estado": "en_ruta"},
+            "Bus_Reserva_01": {"ruta": "Patio", "posicion_gps": "Patio_Portal", "velocidad_kmh": 0, "estado": "disponible"},
+            "Bus_Apoyo_02": {"ruta": "Patio", "posicion_gps": "Patio_Portal", "velocidad_kmh": 0, "estado": "disponible"},
         }
         self.bd_trazabilidad = []
 
-    def registrar_mensaje_fipa(self, mensaje_acl: dict):
-        """Guarda cada intercambio FIPA ACL en la Base de Datos de Trazabilidad."""
-        self.bd_trazabilidad.append(mensaje_acl)
-        print(f"\n[BUS FIPA-ACL] {mensaje_acl['sender']} -> {mensaje_acl['receiver']} | Performativa: {mensaje_acl['performative'].upper()}")
-        print(f"   Contenido: {json.dumps(mensaje_acl['content'], ensure_ascii=False)}")
+    def registrar_mensaje_fipa(self, msg: dict):
+        self.bd_trazabilidad.append(msg)
+        print(f"[FIPA-ACL] {msg['sender']} -> {msg['receiver']} | <<ACL:{msg['performative'].upper()}>>")
+        print(f"           Contenido: {json.dumps(msg['content'], ensure_ascii=False)}")
 
-    def despachar_bus_reserva(self, bus_id: str, estacion_destino: str):
-        """Efecto físico en el entorno al despachar flota."""
-        if bus_id in self.buses and estacion_destino in self.estaciones:
-            self.buses[bus_id]["ruta"] = "Expreso_Refuerzo"
-            self.buses[bus_id]["velocidad_kmh"] = 40
-            # Al llegar el refuerzo, baja la congestión en el andén
-            self.estaciones[estacion_destino]["aforo"] -= 60
-            self.estaciones[estacion_destino]["tiempo_espera_min"] = 5
-            print(f"   >>> [ENTORNO ACTUALIZADO] {bus_id} despachado a {estacion_destino}. Nuevo aforo: {self.estaciones[estacion_destino]['aforo']} usuarios.")
+    def consultar_estado_estacion(self, estacion_x: str) -> dict:
+        datos = self.estaciones[estacion_x]
+        print(f"[ENTORNO] Consulta {estacion_x} -> aforo={datos['aforo']}, espera={datos['tiempo_espera_min']} min")
+        return {"estacion": estacion_x, **datos}
 
-    def regular_bus(self, bus_id: str, nueva_velocidad: int, retencion_seg: int):
-        """Efecto físico en el entorno al regular la marcha de un bus."""
-        if bus_id in self.buses:
-            self.buses[bus_id]["velocidad_kmh"] = nueva_velocidad
-            self.buses[bus_id]["posicion_km"] -= 0.25 # Se distancia del bus de adelante
-            print(f"   >>> [ENTORNO ACTUALIZADO] {bus_id} retenido {retencion_seg}s y velocidad ajustada a {nueva_velocidad} km/h.")
+    def reservar_unidad_patio(self, bus_id: str) -> str:
+        if self.buses[bus_id]["estado"] == "disponible":
+            self.buses[bus_id]["estado"] = "reservada"
+            print(f"[ENTORNO] {bus_id} marcada como RESERVADA en patio.")
+            return "reservada"
+        return "no_disponible"
 
-    def mostrar_estado(self, titulo: str):
-        print(f"\n--- {titulo} ---")
-        print("Estaciones:", json.dumps(self.estaciones, ensure_ascii=False))
-        print("Flota:", json.dumps(self.buses, ensure_ascii=False))
+    def despachar_unidad_reservada(self, bus_id: str, ruta_x: str) -> str:
+        if self.buses[bus_id]["estado"] == "reservada":
+            self.buses[bus_id]["estado"] = "despachada"
+            self.buses[bus_id]["ruta"] = ruta_x
+            print(f"[ENTORNO] {bus_id} DESPACHADA hacia ruta {ruta_x}.")
+            return "despachada"
+        raise ValueError(f"No se puede despachar {bus_id} sin reservarla primero.")
+
+    def desplazamiento_hacia_estacion(self, bus_id: str, estacion_x: str):
+        self.buses[bus_id]["estado"] = "en_ruta"
+        self.buses[bus_id]["velocidad_kmh"] = 40
+        self.estaciones[estacion_x]["aforo"] = max(0, self.estaciones[estacion_x]["aforo"] - 65)
+        self.estaciones[estacion_x]["tiempo_espera_min"] = 6.0
+        print(f"[ENTORNO] {bus_id} en desplazamiento hacia {estacion_x}. Nuevo aforo: {self.estaciones[estacion_x]['aforo']}.")
+
+    def retener_bus_y_ajustar_velocidad(self, bus_id: str, tiempo_retencion_x: int, velocidad_objetivo_x: int):
+        self.buses[bus_id]["velocidad_kmh"] = velocidad_objetivo_x
+        self.buses[bus_id]["posicion_gps"] = "Km 3.85 (intervalo restablecido)"
+        print(f"[ENTORNO] {bus_id} retenido {tiempo_retencion_x}s y velocidad ajustada a {velocidad_objetivo_x} km/h.")
 
 
 # ==============================================================================
-# 2. FUNCIÓN AUXILIAR PARA INVOCAR AGENTES CON GOOGLE GENAI SDK
+# 2. MOTOR DE COMUNICACIÓN FIPA ACL CON GOOGLE GENAI SDK
 # ==============================================================================
-def ejecutar_agente(rol_sistema: str, percepcion: str, max_reintentos: int = 3, espera_base: float = 2.0) -> dict:
+def emitir_fipa_acl(
+    entorno: EntornoUrbanoTranscaribe,
+    sender: str,
+    receiver: str,
+    performative: str,
+    protocol: str,
+    instruccion: str,
+    max_reintentos: int = 3,
+    espera_base: float = 2.0,
+) -> dict:
     global modelo_actual_idx
-    ultimo_error = None
+    system_prompt = (
+        f"Eres el agente '{sender}' del Sistema Multiagente de Transcaribe. "
+        "Responde UNICAMENTE con un objeto JSON válido que siga el estándar FIPA ACL con exactamente estas llaves: "
+        "performative, sender, receiver, content, ontology, protocol. "
+        f"Usa performative='{performative}', sender='{sender}', receiver='{receiver}', "
+        f"ontology='Transcaribe', protocol='{protocol}'."
+    )
 
+    ultimo_error = None
     while modelo_actual_idx < len(MODELOS):
         modelo = MODELOS[modelo_actual_idx]
         for intento in range(1, max_reintentos + 1):
             try:
                 response = client.models.generate_content(
                     model=modelo,
-                    contents=percepcion,
+                    contents=instruccion,
                     config=types.GenerateContentConfig(
-                        system_instruction=rol_sistema,
+                        system_instruction=system_prompt,
                         response_mime_type="application/json",
                         temperature=0.1,
                     ),
                 )
-                return json.loads(response.text)
+                msg = json.loads(response.text)
+                entorno.registrar_mensaje_fipa(msg)
+                return msg
             except errors.APIError as e:
                 ultimo_error = e
                 es_cuota_diaria = e.code == 429 and (
@@ -111,69 +141,190 @@ def ejecutar_agente(rol_sistema: str, percepcion: str, max_reintentos: int = 3, 
 
 
 # ==============================================================================
-# 3. EJECUCIÓN DE LA SIMULACIÓN EN ENTORNO COMPARTIDO
+# 3. DIAGRAMA DE SECUENCIA 1 (CU-01): CONGESTIÓN, RESERVA Y DESPACHO
 # ==============================================================================
-entorno = EntornoUrbanoTranscaribe()
-entorno.mostrar_estado("ESTADO INICIAL DEL ENTORNO")
+def ejecutar_cu01(entorno: EntornoUrbanoTranscaribe):
+    print("\n" + "=" * 75)
+    print("CU-01: GESTIÓN DE CONGESTIÓN, RESERVA DE FLOTA Y DESPACHO A ESTACIÓN")
+    print("=" * 75)
 
-# ------------------------------------------------------------------------------
-# CICLO 1: Gestión de Saturación (CU-01)
-# ------------------------------------------------------------------------------
-print("\n[CICLO 1: MONITOREO DE ESTACIONES Y DESPACHO DE RESERVA]")
+    estacion_x = "Estacion_Bazurto"
+    ruta_x = "T101"
+    bus_reserva_x = "Bus_Reserva_01"
 
-# 1. Monitor percibe el entorno
-datos_estacion = entorno.estaciones["Estacion_Bazurto"]
-msg_req_despacho = ejecutar_agente(
-    rol_sistema="Eres AgenteMonitorDemandaEstaciones de Transcaribe. Emite mensajes FIPA ACL estrictos en JSON con llaves: performative, sender, receiver, content, ontology, protocol.",
-    percepcion=f"Percibes en Estacion_Bazurto: {datos_estacion}. Como el aforo supera el umbral, envía un 'request' a 'AgenteCoordinadorOperativoMovilidad' solicitando el despacho de 'Bus_Reserva_01'."
-)
-entorno.registrar_mensaje_fipa(msg_req_despacho)
+    # 1. Consulta al entorno y detección de saturación
+    datos = entorno.consultar_estado_estacion(estacion_x)
+    if datos["aforo"] <= datos["umbral"]:
+        print("Aforo dentro de parámetros normales.")
+        return
 
-# 2. Coordinador evalúa y acepta (AGREE)
-msg_agree_coord = ejecutar_agente(
-    rol_sistema="Eres AgenteCoordinadorOperativoMovilidad de Transcaribe. Emite mensajes FIPA ACL estrictos en JSON con llaves: performative, sender, receiver, content, ontology, protocol.",
-    percepcion=f"Recibiste: {msg_req_despacho}. Flota disponible en patio: {entorno.buses['Bus_Reserva_01']}. Responde con performativa 'agree' aceptando el despacho."
-)
-entorno.registrar_mensaje_fipa(msg_agree_coord)
+    emitir_fipa_acl(
+        entorno, "AgenteMonitorDemandaEstaciones", "AgenteReguladorRutaFrecuencias",
+        "inform", "FIPA-Inform",
+        f"Notifica alerta_congestion en {estacion_x} con aforo={datos['aforo']} y tiempo_espera={datos['tiempo_espera_min']}."
+    )
+    req_refuerzo = emitir_fipa_acl(
+        entorno, "AgenteMonitorDemandaEstaciones", "AgenteCoordinadorOperativoMovilidad",
+        "request", "FIPA-Request",
+        f"Solicita refuerzo para {estacion_x} en la ruta {ruta_x} por saturación crítica."
+    )
 
-# 3. Acción física sobre el entorno e INFORM-DONE
-entorno.despachar_bus_reserva("Bus_Reserva_01", "Estacion_Bazurto")
-msg_done_coord = ejecutar_agente(
-    rol_sistema="Eres AgenteCoordinadorOperativoMovilidad. Emite mensajes FIPA ACL estrictos en JSON con llaves: performative, sender, receiver, content, ontology, protocol.",
-    percepcion="Ya ejecutaste el despacho de Bus_Reserva_01 en el entorno. Envía 'inform-done' a 'AgenteMonitorDemandaEstaciones'."
-)
-entorno.registrar_mensaje_fipa(msg_done_coord)
+    # 2. Reserva y posterior despacho desde patio
+    estado_res = entorno.reservar_unidad_patio(bus_reserva_x)
+    if estado_res == "reservada":
+        entorno.despachar_unidad_reservada(bus_reserva_x, ruta_x)
+
+    emitir_fipa_acl(
+        entorno, "AgenteCoordinadorOperativoMovilidad", "AgenteMonitorDemandaEstaciones",
+        "agree", "FIPA-Request",
+        f"Confirma que {bus_reserva_x} fue reservada y despachada para atender {estacion_x}."
+    )
+
+    # 3. Integración a ruta y ejecución a bordo
+    emitir_fipa_acl(
+        entorno, "AgenteCoordinadorOperativoMovilidad", "AgenteReguladorRutaFrecuencias",
+        "request", "FIPA-Request",
+        f"Solicita integrar {bus_reserva_x} a la ruta {ruta_x} con destino prioritario {estacion_x}."
+    )
+    eta_x = "7 min"  # Resultado simulado de predecirETA()
+    emitir_fipa_acl(
+        entorno, "AgenteReguladorRutaFrecuencias", "AgenteUnidadVehicular",
+        "request", "FIPA-Request",
+        f"Asigna recorrido de refuerzo a {bus_reserva_x} en ruta {ruta_x} hacia {estacion_x} con eta={eta_x}."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteUnidadVehicular", "AgenteConductor",
+        "request", "FIPA-Request",
+        f"Solicita iniciar recorrido de refuerzo en {bus_reserva_x} hacia {estacion_x} (ruta {ruta_x})."
+    )
+
+    # Cadena de aceptación (AGREE)
+    emitir_fipa_acl(
+        entorno, "AgenteConductor", "AgenteUnidadVehicular",
+        "agree", "FIPA-Request", f"Acepta iniciar el recorrido en {bus_reserva_x}."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteUnidadVehicular", "AgenteReguladorRutaFrecuencias",
+        "agree", "FIPA-Request", f"Confirma recorrido aceptado por el conductor de {bus_reserva_x}."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteReguladorRutaFrecuencias", "AgenteCoordinadorOperativoMovilidad",
+        "agree", "FIPA-Request", f"Confirma unidad {bus_reserva_x} integrada al corredor {ruta_x}."
+    )
+
+    # 4. Ejecución física en entorno y cierre en cadena (INFORM-DONE)
+    entorno.desplazamiento_hacia_estacion(bus_reserva_x, estacion_x)
+
+    emitir_fipa_acl(
+        entorno, "AgenteConductor", "AgenteUnidadVehicular",
+        "inform-done", "FIPA-Request", f"Informa desplazamiento iniciado de {bus_reserva_x} hacia {estacion_x}."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteUnidadVehicular", "AgenteReguladorRutaFrecuencias",
+        "inform-done", "FIPA-Request", f"Informa {bus_reserva_x} en ruta hacia {estacion_x}."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteReguladorRutaFrecuencias", "AgenteCoordinadorOperativoMovilidad",
+        "inform-done", "FIPA-Request", f"Informa refuerzo operativo activo con {bus_reserva_x} en {ruta_x}."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteCoordinadorOperativoMovilidad", "AgenteMonitorDemandaEstaciones",
+        "inform-done", "FIPA-Request", f"Confirma despacho completado de {bus_reserva_x} para {estacion_x}."
+    )
 
 
-# ------------------------------------------------------------------------------
-# CICLO 2: Prevención de Bunching (CU-02)
-# ------------------------------------------------------------------------------
-print("\n[CICLO 2: REGULACIÓN DE INTERVALOS Y PREVENCIÓN DE BUNCHING]")
+# ==============================================================================
+# 4. DIAGRAMA DE SECUENCIA 2 (CU-02): REGULACIÓN DE FRECUENCIAS Y BUNCHING
+# ==============================================================================
+def ejecutar_cu02(entorno: EntornoUrbanoTranscaribe):
+    print("\n" + "=" * 75)
+    print("CU-02: REGULACIÓN DE FRECUENCIAS, PREVENCIÓN DE BUNCHING Y RESPALDO")
+    print("=" * 75)
 
-# 1. Unidad Vehicular reporta telemetría desde el entorno
-telemetria_t104 = entorno.buses["Bus_T104"]
-telemetria_t101 = entorno.buses["Bus_T101"]
-msg_inf_bus = ejecutar_agente(
-    rol_sistema="Eres AgenteUnidadVehicular (Bus_T104). Emite mensajes FIPA ACL estrictos en JSON con llaves: performative, sender, receiver, content, ontology, protocol.",
-    percepcion=f"Tu telemetría actual es {telemetria_t104}. Envía un 'inform' a 'AgenteReguladorRutaFrecuencias' con tu posición y velocidad."
-)
-entorno.registrar_mensaje_fipa(msg_inf_bus)
+    bus_x = "Bus_T104"
+    ruta_x = "T101"
+    estacion_x = "Estacion_Bazurto"
+    estacion_y = "Estacion_Delicias"
+    bus_apoyo_x = "Bus_Apoyo_02"
+    tiempo_retencion_x = 45
+    velocidad_objetivo_x = 30
 
-# 2. Regulador detecta cercanía con Bus_T101 (4.2 km vs 4.05 km = 150 metros) y envía REQUEST
-msg_req_reg = ejecutar_agente(
-    rol_sistema="Eres AgenteReguladorRutaFrecuencias. Emite mensajes FIPA ACL estrictos en JSON con llaves: performative, sender, receiver, content, ontology, protocol.",
-    percepcion=f"Recibiste {msg_inf_bus}. Sabes que Bus_T101 está en km 4.2 (a solo 150m). Envía un 'request' a 'AgenteUnidadVehicular' ordenando retención de 40 segundos y bajar velocidad a 30 km/h."
-)
-entorno.registrar_mensaje_fipa(msg_req_reg)
+    telemetria = entorno.buses[bus_x]
 
-# 3. Unidad Vehicular + Conductor ejecutan en el entorno y cierran con INFORM-DONE
-entorno.regular_bus("Bus_T104", nueva_velocidad=30, retencion_seg=40)
-msg_done_bus = ejecutar_agente(
-    rol_sistema="Eres AgenteUnidadVehicular (Bus_T104) tras confirmación del AgenteConductor. Emite mensajes FIPA ACL estrictos en JSON con llaves: performative, sender, receiver, content, ontology, protocol.",
-    percepcion="El conductor ejecutó la retención y bajó la velocidad a 30 km/h. Envía 'inform-done' a 'AgenteReguladorRutaFrecuencias'."
-)
-entorno.registrar_mensaje_fipa(msg_done_bus)
+    # 1. Telemetría y regulación táctica en vía
+    emitir_fipa_acl(
+        entorno, "AgenteUnidadVehicular", "AgenteReguladorRutaFrecuencias",
+        "inform", "FIPA-Inform",
+        f"Reporta telemetría de {bus_x} en ruta {ruta_x}: posicion={telemetria['posicion_gps']}, velocidad={telemetria['velocidad_kmh']} km/h."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteReguladorRutaFrecuencias", "AgenteUnidadVehicular",
+        "request", "FIPA-Request",
+        f"Riesgo de bunching detectado. Ordena regular marcha de {bus_x} en {estacion_x}: retención de {tiempo_retencion_x}s y velocidad objetivo {velocidad_objetivo_x} km/h."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteUnidadVehicular", "AgenteConductor",
+        "request", "FIPA-Request",
+        f"Solicita ejecutar retención de {tiempo_retencion_x}s en {estacion_x} y bajar velocidad a {velocidad_objetivo_x} km/h en {bus_x}."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteConductor", "AgenteUnidadVehicular",
+        "agree", "FIPA-Request", f"Confirma que la maniobra es segura y la acepta para {bus_x}."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteUnidadVehicular", "AgenteReguladorRutaFrecuencias",
+        "agree", "FIPA-Request", f"Confirma instrucción de regulación aceptada para {bus_x}."
+    )
 
-# Mostrar el impacto real de los agentes sobre el entorno y la BD de trazabilidad
-entorno.mostrar_estado("ESTADO FINAL DEL ENTORNO TRAS INTERVENCIÓN DE LOS AGENTES")
-print(f"\nTotal de mensajes FIPA ACL auditados en Base de Datos de Trazabilidad: {len(entorno.bd_trazabilidad)}")
+    entorno.retener_bus_y_ajustar_velocidad(bus_x, tiempo_retencion_x, velocidad_objetivo_x)
+
+    emitir_fipa_acl(
+        entorno, "AgenteConductor", "AgenteUnidadVehicular",
+        "inform-done", "FIPA-Request", f"Informa retención y ajuste de velocidad completados en {bus_x}."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteUnidadVehicular", "AgenteReguladorRutaFrecuencias",
+        "inform-done", "FIPA-Request", f"Informa intervalo restablecido para {bus_x} en ruta {ruta_x}."
+    )
+
+    # 2. Impacto en demanda y respaldo con reserva
+    datos_y = entorno.consultar_estado_estacion(estacion_y)
+
+    emitir_fipa_acl(
+        entorno, "AgenteMonitorDemandaEstaciones", "AgenteReguladorRutaFrecuencias",
+        "inform", "FIPA-Inform",
+        f"Informa aumento de aforo en {estacion_y}: aforo={datos_y['aforo']} tras la retención."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteMonitorDemandaEstaciones", "AgenteCoordinadorOperativoMovilidad",
+        "inform", "FIPA-Inform",
+        f"Envía alerta de demanda acumulada en {estacion_y}: aforo={datos_y['aforo']}, espera={datos_y['tiempo_espera_min']} min."
+    )
+
+    if entorno.reservar_unidad_patio(bus_apoyo_x) == "reservada":
+        entorno.despachar_unidad_reservada(bus_apoyo_x, ruta_x)
+
+    emitir_fipa_acl(
+        entorno, "AgenteCoordinadorOperativoMovilidad", "AgenteReguladorRutaFrecuencias",
+        "request", "FIPA-Request",
+        f"Solicita coordinar el ingreso de {bus_apoyo_x} a la ruta {ruta_x} para cubrir {estacion_y}."
+    )
+    emitir_fipa_acl(
+        entorno, "AgenteReguladorRutaFrecuencias", "AgenteCoordinadorOperativoMovilidad",
+        "inform-done", "FIPA-Request",
+        f"Confirma frecuencia cubierta en ruta {ruta_x} con {bus_apoyo_x}."
+    )
+
+
+# ==============================================================================
+# 5. EJECUCIÓN PRINCIPAL
+# ==============================================================================
+if __name__ == "__main__":
+    entorno = EntornoUrbanoTranscaribe()
+    ejecutar_cu01(entorno)
+    ejecutar_cu02(entorno)
+
+    print("\n" + "=" * 75)
+    print(f"SIMULACIÓN COMPLETA | Total mensajes FIPA ACL registrados en BD: {len(entorno.bd_trazabilidad)}")
+    print("Estado final de estaciones:", json.dumps(entorno.estaciones, ensure_ascii=False))
+    print("Estado final de flota:", json.dumps(entorno.buses, ensure_ascii=False))
