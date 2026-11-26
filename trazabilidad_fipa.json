@@ -1,0 +1,218 @@
+[
+  {
+    "timestamp": "2026-11-26T13:19:54-05:00",
+    "performative": "inform",
+    "sender": "AgenteMonitorDemandaEstaciones",
+    "receiver": "AgenteReguladorRutaFrecuencias",
+    "content": "Se ha detectado alerta de congestion en la Estacion Bazurto con un aforo de 140 pasajeros y un tiempo de espera de 21.0 minutos.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Inform"
+  },
+  {
+    "timestamp": "2026-11-26T13:19:57-05:00",
+    "performative": "request",
+    "sender": "AgenteMonitorDemandaEstaciones",
+    "receiver": "AgenteCoordinadorOperativoMovilidad",
+    "content": "Se solicita un bus de refuerzo para la Estacion Bazurto en la ruta T101 debido a una saturacion critica de pasajeros.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:00-05:00",
+    "performative": "agree",
+    "sender": "AgenteCoordinadorOperativoMovilidad",
+    "receiver": "AgenteMonitorDemandaEstaciones",
+    "content": "Confirmo que el Bus_Reserva_01 fue reservado y despachado exitosamente para atender la demanda en la Estacion_Bazurto.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:02-05:00",
+    "performative": "request",
+    "sender": "AgenteCoordinadorOperativoMovilidad",
+    "receiver": "AgenteReguladorRutaFrecuencias",
+    "content": "Por favor integre el Bus_Reserva_01 a la ruta T101 con destino prioritario Estacion_Bazurto.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:04-05:00",
+    "performative": "request",
+    "sender": "AgenteReguladorRutaFrecuencias",
+    "receiver": "AgenteUnidadVehicular",
+    "content": "Asigna recorrido de refuerzo a Bus_Reserva_01 en ruta T101 hacia Estacion_Bazurto con eta=7.4 min.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:07-05:00",
+    "performative": "request",
+    "sender": "AgenteUnidadVehicular",
+    "receiver": "AgenteConductor",
+    "content": "Por favor inicie el recorrido de refuerzo en el bus Bus_Reserva_01 hacia la Estacion_Bazurto operando la ruta T101.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:10-05:00",
+    "performative": "agree",
+    "sender": "AgenteConductor",
+    "receiver": "AgenteUnidadVehicular",
+    "content": "Acepto iniciar el recorrido programado en el bus Bus_Reserva_01.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:11-05:00",
+    "performative": "agree",
+    "sender": "AgenteUnidadVehicular",
+    "receiver": "AgenteReguladorRutaFrecuencias",
+    "content": "El conductor del Bus_Reserva_01 ha aceptado y confirmado el recorrido asignado.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:12-05:00",
+    "performative": "agree",
+    "sender": "AgenteReguladorRutaFrecuencias",
+    "receiver": "AgenteCoordinadorOperativoMovilidad",
+    "content": "Se confirma la integración exitosa de la unidad Bus_Reserva_01 al corredor T101.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:15-05:00",
+    "performative": "inform-done",
+    "sender": "AgenteConductor",
+    "receiver": "AgenteUnidadVehicular",
+    "content": "El desplazamiento del Bus_Reserva_01 hacia la Estacion_Bazurto ha sido iniciado exitosamente.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:20-05:00",
+    "performative": "inform-done",
+    "sender": "AgenteUnidadVehicular",
+    "receiver": "AgenteReguladorRutaFrecuencias",
+    "content": "La unidad Bus_Reserva_01 se encuentra actualmente en ruta hacia la Estacion_Bazurto.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:22-05:00",
+    "performative": "inform-done",
+    "sender": "AgenteReguladorRutaFrecuencias",
+    "receiver": "AgenteCoordinadorOperativoMovilidad",
+    "content": "Refuerzo operativo activo con Bus_Reserva_01 en la ruta T101.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:24-05:00",
+    "performative": "inform-done",
+    "sender": "AgenteCoordinadorOperativoMovilidad",
+    "receiver": "AgenteMonitorDemandaEstaciones",
+    "content": "Se confirma el despacho completado del Bus_Reserva_01 hacia la Estacion_Bazurto.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:25-05:00",
+    "performative": "inform",
+    "sender": "AgenteUnidadVehicular",
+    "receiver": "AgenteReguladorRutaFrecuencias",
+    "content": "La unidad vehicular Bus_T100E_02 en la ruta T100E reporta una posición en el kilómetro 4.08 y una velocidad actual de 48 km/h.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Inform"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:29-05:00",
+    "performative": "request",
+    "sender": "AgenteReguladorRutaFrecuencias",
+    "receiver": "AgenteUnidadVehicular",
+    "content": "Se ha detectado riesgo de bunching. Por favor, regular la marcha del vehículo Bus_T100E_02 en Estacion_Cuatro_Vientos aplicando una retención de 45 segundos y manteniendo una velocidad objetivo de 30 km/h.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:30-05:00",
+    "performative": "request",
+    "sender": "AgenteUnidadVehicular",
+    "receiver": "AgenteConductor",
+    "content": "Ejecutar retención de 45s en Estacion_Cuatro_Vientos y bajar velocidad a 30 km/h en Bus_T100E_02.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:32-05:00",
+    "performative": "agree",
+    "sender": "AgenteConductor",
+    "receiver": "AgenteUnidadVehicular",
+    "content": "Maniobra confirmada como segura y aceptada para el Bus_T100E_02.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:40-05:00",
+    "performative": "agree",
+    "sender": "AgenteUnidadVehicular",
+    "receiver": "AgenteReguladorRutaFrecuencias",
+    "content": "La instrucción de regulación para el vehículo Bus_T100E_02 ha sido recibida y aceptada correctamente.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:41-05:00",
+    "performative": "inform-done",
+    "sender": "AgenteConductor",
+    "receiver": "AgenteUnidadVehicular",
+    "content": "La retención y el ajuste de velocidad han sido completados exitosamente en la unidad Bus_T100E_02.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:41-05:00",
+    "performative": "inform-done",
+    "sender": "AgenteUnidadVehicular",
+    "receiver": "AgenteReguladorRutaFrecuencias",
+    "content": "El intervalo de operación para el bus T100E_02 en la ruta T100E ha sido restablecido exitosamente.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:42-05:00",
+    "performative": "inform",
+    "sender": "AgenteMonitorDemandaEstaciones",
+    "receiver": "AgenteReguladorRutaFrecuencias",
+    "content": "Se ha registrado un aumento de aforo en la Estación María Auxiliadora alcanzando 115 personas tras la retención.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Inform"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:43-05:00",
+    "performative": "inform",
+    "sender": "AgenteMonitorDemandaEstaciones",
+    "receiver": "AgenteCoordinadorOperativoMovilidad",
+    "content": "Se ha detectado una alerta de demanda acumulada en la Estación María Auxiliadora con un aforo de 115 pasajeros y un tiempo de espera promedio de 16.5 minutos.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Inform"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:44-05:00",
+    "performative": "request",
+    "sender": "AgenteCoordinadorOperativoMovilidad",
+    "receiver": "AgenteReguladorRutaFrecuencias",
+    "content": "Por favor coordine el ingreso del Bus_Apoyo_02 a la ruta T100E para cubrir la demanda en la Estacion_Maria_Auxiliadora.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  },
+  {
+    "timestamp": "2026-11-26T13:20:45-05:00",
+    "performative": "inform-done",
+    "sender": "AgenteReguladorRutaFrecuencias",
+    "receiver": "AgenteCoordinadorOperativoMovilidad",
+    "content": "La frecuencia de la ruta T100E ha sido cubierta exitosamente por el vehículo Bus_Apoyo_02 según lo programado.",
+    "ontology": "Transcaribe",
+    "protocol": "FIPA-Request"
+  }
+]

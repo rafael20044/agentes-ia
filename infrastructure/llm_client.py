@@ -25,6 +25,7 @@ class GeminiLLMClient:
         max_reintentos: int = MAX_REINTENTOS,
         espera_base: float = ESPERA_BASE_SEG,
     ):
+        # Desactivamos reintentos internos del SDK para controlar el backoff manualmente
         self._client = genai.Client(
             http_options=types.HttpOptions(
                 retry_options=types.HttpRetryOptions(attempts=1)
@@ -44,6 +45,7 @@ class GeminiLLMClient:
             modelo = self._modelos[self._modelo_actual_idx]
             for intento in range(1, self._max_reintentos + 1):
                 try:
+                    # Forzamos salida en formato JSON puro con response_mime_type
                     response = self._client.models.generate_content(
                         model=modelo,
                         contents=instruccion,
@@ -59,12 +61,14 @@ class GeminiLLMClient:
                     es_cuota_diaria = e.code == 429 and (
                         "PerDay" in str(e) or "per day" in str(e).lower()
                     )
+                    # Si el modelo no existe o agotó cuota diaria, pasamos al siguiente modelo
                     if e.code == 404 or es_cuota_diaria:
                         print(
                             f"   [API {e.code}] Modelo '{modelo}' sin cuota diaria o no disponible. "
                             "Probando siguiente modelo..."
                         )
                         break
+                    # Backoff exponencial (2s, 4s) para errores temporales de red o rate limit por minuto
                     if e.code in (429, 500, 503, 504) and intento < self._max_reintentos:
                         espera = self._espera_base * (2 ** (intento - 1))
                         print(

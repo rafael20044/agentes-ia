@@ -10,6 +10,7 @@ class AgenteCoordinadorOperativoMovilidad(AgenteBase):
     nombre = "AgenteCoordinadorOperativoMovilidad"
 
     def reservar_y_despachar_unidad(self, bus_id: str, ruta: str) -> bool:
+        # Primero reserva la unidad en patio y solo si está disponible la despacha a la troncal
         estado_res = self.entorno.reservar_unidad_patio(bus_id)
         if estado_res == "reservada":
             self.entorno.despachar_unidad_reservada(bus_id, ruta)

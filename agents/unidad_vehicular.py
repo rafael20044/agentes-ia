@@ -39,6 +39,7 @@ class AgenteUnidadVehicular(AgenteBase):
         )
 
     def reportar_telemetria(self, bus_id: str, ruta: str) -> dict[str, Any]:
+        # Lee GPS y velocidad del bus en el entorno para enviárselos al Regulador
         telemetria = self.entorno.consultar_telemetria_bus(bus_id)
         return self.enviar_mensaje(
             receiver="AgenteReguladorRutaFrecuencias",

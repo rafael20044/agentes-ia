@@ -10,8 +10,15 @@ class AgenteReguladorRutaFrecuencias(AgenteBase):
     nombre = "AgenteReguladorRutaFrecuencias"
 
     def predecir_eta(self, bus_id: str, estacion: str) -> str:
-        """Simulación de predicción de ETA hacia la estación objetivo."""
-        return "7 min"
+        """Cálculo lineal de ETA en función de distancia, velocidad promedio y congestión."""
+        datos_estacion = self.entorno.estaciones.get(estacion, {"aforo": 100, "umbral": 100})
+        distancia_estimada_km = 4.2
+        velocidad_promedio_kmh = 38.0
+        # Tiempo base en minutos más penalización proporcional al nivel de saturación
+        tiempo_base_min = (distancia_estimada_km / velocidad_promedio_kmh) * 60.0
+        factor_congestion = (datos_estacion["aforo"] / max(1, datos_estacion["umbral"])) * 0.55
+        eta_min = round(tiempo_base_min + factor_congestion, 1)
+        return f"{eta_min} min"
 
     def asignar_recorrido_refuerzo(
         self, bus_id: str, ruta: str, estacion: str, eta: str

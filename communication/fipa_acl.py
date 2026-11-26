@@ -8,9 +8,11 @@ from infrastructure.traceability_db import BaseDatosTrazabilidad
 
 
 class Performativa:
+    # Intenciones comunicativas usadas en los protocolos FIPA-Inform y FIPA-Request
     INFORM = "inform"
     REQUEST = "request"
     AGREE = "agree"
+    REFUSE = "refuse"
     INFORM_DONE = "inform-done"
 
 
@@ -40,12 +42,15 @@ class BusMensajesFIPA:
         protocol: str,
         instruccion: str,
     ) -> dict[str, Any]:
+        # Prompt de sistema que obliga al LLM a cumplir las 6 llaves del estándar FIPA-ACL
         system_prompt = (
             f"Eres el agente '{sender}' del Sistema Multiagente de Transcaribe. "
             "Responde UNICAMENTE con un objeto JSON válido que siga el estándar FIPA ACL "
             "con exactamente estas llaves: performative, sender, receiver, content, ontology, protocol. "
             f"Usa performative='{performative}', sender='{sender}', receiver='{receiver}', "
-            f"ontology='{self._ontology}', protocol='{protocol}'."
+            f"ontology='{self._ontology}', protocol='{protocol}'. "
+            "IMPORTANTE: El valor de la llave 'content' debe ser SIEMPRE una oración clara en texto plano "
+            "en español y NUNCA un objeto JSON ni un string con JSON escapado adentro."
         )
         msg = self._llm_client.generar_json(system_prompt=system_prompt, instruccion=instruccion)
         self._trazabilidad.registrar(msg)

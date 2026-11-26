@@ -20,6 +20,7 @@ def ejecutar_cu01(
     print("CU-01: GESTIÓN DE CONGESTIÓN, RESERVA DE FLOTA Y DESPACHO A ESTACIÓN")
     print("=" * 75)
 
+    # Escenario sobre la troncal T101 en Estación Bazurto
     estacion_x = "Estacion_Bazurto"
     ruta_x = "T101"
     bus_reserva_x = "Bus_Reserva_01"

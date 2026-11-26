@@ -13,7 +13,11 @@ class AgenteMonitorDemandaEstaciones(AgenteBase):
         return self.entorno.consultar_estado_estacion(estacion)
 
     def detectar_saturacion(self, datos_estacion: dict[str, Any]) -> bool:
-        return datos_estacion["aforo"] > datos_estacion["umbral"]
+        # Regla de decisión: hay saturación si supera el umbral de aforo o los 15 min de espera
+        return (
+            datos_estacion["aforo"] > datos_estacion["umbral"]
+            or datos_estacion.get("tiempo_espera_min", 0.0) > 15.0
+        )
 
     def notificar_alerta_congestion(
         self, estacion: str, aforo: int, tiempo_espera: float

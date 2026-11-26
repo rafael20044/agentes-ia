@@ -18,6 +18,7 @@ class AgenteConductor(AgenteBase):
         )
 
     def ejecutar_desplazamiento(self, bus_id: str, estacion: str) -> dict[str, Any]:
+        # Acciona el movimiento físico del bus en el entorno y confirma con INFORM-DONE
         self.entorno.desplazamiento_hacia_estacion(bus_id, estacion)
         return self.enviar_mensaje(
             receiver="AgenteUnidadVehicular",
@@ -37,6 +38,7 @@ class AgenteConductor(AgenteBase):
     def ejecutar_retencion_y_velocidad(
         self, bus_id: str, tiempo_retencion: int, velocidad_objetivo: int
     ) -> dict[str, Any]:
+        # Ejecuta la retención en estación y el ajuste de velocidad sobre el entorno
         self.entorno.retener_bus_y_ajustar_velocidad(
             bus_id, tiempo_retencion, velocidad_objetivo
         )
