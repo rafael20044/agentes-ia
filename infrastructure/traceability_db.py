@@ -25,6 +25,10 @@ class BaseDatosTrazabilidad:
             f"[FIPA-ACL] ({registro['timestamp']}) {registro['sender']} -> {registro['receiver']} | "
             f"<<ACL:{registro['performative'].upper()}>>"
         )
+        respuesta = (
+            f" | responde a {registro['in-reply-to']}" if registro.get("in-reply-to") else ""
+        )
+        print(f"           id: {registro.get('reply-with')}{respuesta}")
         print(f"           Contenido: {registro['content']}")
 
     def _guardar_json(self) -> None:

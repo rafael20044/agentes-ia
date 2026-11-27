@@ -32,13 +32,29 @@ class AgenteMonitorDemandaEstaciones(AgenteBase):
             ),
         )
 
-    def solicitar_refuerzo(self, estacion: str, ruta: str) -> dict[str, Any]:
+    def solicitar_reserva_unidad(self, estacion: str, ruta: str) -> dict[str, Any]:
+        # Primer paso: pedir que se reserve una unidad. Reserva y despacho son dos solicitudes distintas.
         return self.enviar_mensaje(
             receiver="AgenteCoordinadorOperativoMovilidad",
             performative=Performativa.REQUEST,
             protocol=ProtocoloFIPA.REQUEST,
             instruccion=(
-                f"Solicita refuerzo para {estacion} en la ruta {ruta} por saturación crítica."
+                f"Solicita reservar una unidad de patio para reforzar {estacion} en la ruta {ruta} "
+                "por saturación crítica."
+            ),
+        )
+
+    def solicitar_despacho(
+        self, bus_id: str, codigo_reserva: str, ruta: str, estacion: str
+    ) -> dict[str, Any]:
+        # Segundo paso: pedir el despacho de la unidad que quedó reservada, citando su código
+        return self.enviar_mensaje(
+            receiver="AgenteCoordinadorOperativoMovilidad",
+            performative=Performativa.REQUEST,
+            protocol=ProtocoloFIPA.REQUEST,
+            instruccion=(
+                f"Solicita despachar {bus_id} con la reserva {codigo_reserva} "
+                f"hacia {estacion} en la ruta {ruta}."
             ),
         )
 

@@ -4,6 +4,24 @@ from typing import Any
 
 from agents.base_agent import AgenteBase
 from communication.fipa_acl import Performativa, ProtocoloFIPA
+from config.settings import (
+    INTERVALO_MAX_KM,
+    INTERVALO_MIN_KM,
+    TIEMPO_RETENCION_SEG,
+    VELOCIDAD_MAXIMA_PERMITIDA_KMH,
+    VELOCIDAD_REGULACION_KMH,
+)
+
+
+class AccionRegulacion:
+    BAJAR = "bajar"        # Intervalo demasiado corto: retener y bajar velocidad
+    SUBIR = "subir"        # Intervalo demasiado largo: subir a la velocidad permitida
+    MANTENER = "mantener"  # Intervalo dentro de la tolerancia: no se envía instrucción
+
+
+def _km(posicion_gps: str) -> float:
+    # "Km 4.20" -> 4.2
+    return float(posicion_gps.replace("Km", "").split()[0])
 
 
 class AgenteReguladorRutaFrecuencias(AgenteBase):
@@ -49,21 +67,56 @@ class AgenteReguladorRutaFrecuencias(AgenteBase):
             instruccion=f"Informa refuerzo operativo activo con {bus_id} en {ruta}.",
         )
 
-    def ordenar_regulacion_bunching(
-        self,
-        bus_id: str,
-        estacion: str,
-        tiempo_retencion: int,
-        velocidad_objetivo: int,
+    def decidir_ajuste(
+        self, telemetria_delantero: dict[str, Any], telemetria_trasero: dict[str, Any]
     ) -> dict[str, Any]:
+        """Evalúa el intervalo de paso contra la tolerancia y decide la corrección (basado en metas)."""
+        intervalo_km = round(
+            _km(telemetria_delantero["posicion_gps"]) - _km(telemetria_trasero["posicion_gps"]), 2
+        )
+        if intervalo_km < INTERVALO_MIN_KM:
+            accion = AccionRegulacion.BAJAR
+            velocidad_objetivo = VELOCIDAD_REGULACION_KMH
+            tiempo_retencion = TIEMPO_RETENCION_SEG
+        elif intervalo_km > INTERVALO_MAX_KM:
+            accion = AccionRegulacion.SUBIR
+            velocidad_objetivo = VELOCIDAD_MAXIMA_PERMITIDA_KMH
+            tiempo_retencion = 0
+        else:
+            accion = AccionRegulacion.MANTENER
+            velocidad_objetivo = telemetria_trasero["velocidad_kmh"]
+            tiempo_retencion = 0
+        print(
+            f"[REGULADOR] Intervalo={intervalo_km} km "
+            f"(tolerancia {INTERVALO_MIN_KM}-{INTERVALO_MAX_KM} km) -> decisión: {accion.upper()}"
+        )
+        return {
+            "accion": accion,
+            "intervalo_km": intervalo_km,
+            "velocidad_objetivo": velocidad_objetivo,
+            "tiempo_retencion": tiempo_retencion,
+        }
+
+    def ordenar_ajuste_marcha(
+        self, bus_id: str, estacion: str, decision: dict[str, Any]
+    ) -> dict[str, Any]:
+        # Pide a la Unidad Vehicular configurar los parámetros de marcha que verá el conductor
+        if decision["accion"] == AccionRegulacion.BAJAR:
+            detalle = (
+                f"intervalo de {decision['intervalo_km']} km, riesgo de agrupamiento. "
+                f"Configura retención de {decision['tiempo_retencion']}s en {estacion} "
+                f"y velocidad objetivo {decision['velocidad_objetivo']} km/h"
+            )
+        else:
+            detalle = (
+                f"intervalo de {decision['intervalo_km']} km, hueco largo en la ruta. "
+                f"Configura velocidad objetivo {decision['velocidad_objetivo']} km/h"
+            )
         return self.enviar_mensaje(
             receiver="AgenteUnidadVehicular",
             performative=Performativa.REQUEST,
             protocol=ProtocoloFIPA.REQUEST,
-            instruccion=(
-                f"Riesgo de bunching detectado. Ordena regular marcha de {bus_id} en {estacion}: "
-                f"retención de {tiempo_retencion}s y velocidad objetivo {velocidad_objetivo} km/h."
-            ),
+            instruccion=f"Solicita ajustar la marcha de {bus_id}: {detalle}.",
         )
 
     def confirmar_frecuencia_cubierta(self, ruta: str, bus_apoyo: str) -> dict[str, Any]:
