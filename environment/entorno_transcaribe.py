@@ -12,13 +12,14 @@ class EntornoUrbanoTranscaribe:
             "Estacion_Bazurto": {"aforo": 140, "tiempo_espera_min": 21.0, "umbral": 100},
             "Estacion_Maria_Auxiliadora": {"aforo": 115, "tiempo_espera_min": 16.5, "umbral": 100},
         }
-        # Flota en operación sobre la troncal expresa T100E (riesgo de bunching) y buses en Patio Portal
+        # Flota en operación sobre la troncal expresa T100E (riesgo de agrupamiento) y buses en Patio Portal
         self.buses: dict[str, dict[str, Any]] = {
             "Bus_T100E_01": {"ruta": "T100E", "posicion_gps": "Km 4.20", "velocidad_kmh": 42, "estado": "en_ruta"},
             "Bus_T100E_02": {"ruta": "T100E", "posicion_gps": "Km 4.08", "velocidad_kmh": 48, "estado": "en_ruta"},
             "Bus_Reserva_01": {"ruta": "Patio", "posicion_gps": "Patio_Portal", "velocidad_kmh": 0, "estado": "disponible"},
             "Bus_Apoyo_02": {"ruta": "Patio", "posicion_gps": "Patio_Portal", "velocidad_kmh": 0, "estado": "disponible"},
         }
+        self._consecutivo_reserva = 0
 
     # --- Percepciones (lectura del estado del entorno) ---
 
@@ -35,21 +36,33 @@ class EntornoUrbanoTranscaribe:
 
     # --- Actuadores (modifican el estado físico del entorno) ---
 
-    def reservar_unidad_patio(self, bus_id: str) -> str:
-        if self.buses[bus_id]["estado"] == "disponible":
-            self.buses[bus_id]["estado"] = "reservada"
-            print(f"[ENTORNO] {bus_id} marcada como RESERVADA en patio.")
-            return "reservada"
-        return "no_disponible"
+    def buscar_unidad_disponible(self) -> str | None:
+        # Primera unidad del patio que no esté reservada ni despachada
+        for bus_id, datos in self.buses.items():
+            if datos["ruta"] == "Patio" and datos["estado"] == "disponible":
+                return bus_id
+        return None
 
-    def despachar_unidad_reservada(self, bus_id: str, ruta_x: str) -> str:
-        # Precondición: no se puede despachar una unidad que no haya sido reservada antes
-        if self.buses[bus_id]["estado"] == "reservada":
+    def reservar_unidad_patio(self, bus_id: str) -> str | None:
+        # Devuelve el código de la reserva, o None si la unidad ya no está disponible
+        if self.buses[bus_id]["estado"] != "disponible":
+            return None
+        self._consecutivo_reserva += 1
+        codigo = f"RES-{self._consecutivo_reserva:03d}"
+        self.buses[bus_id]["estado"] = "reservada"
+        self.buses[bus_id]["reserva"] = codigo
+        print(f"[ENTORNO] {bus_id} marcada como RESERVADA en patio con código {codigo}.")
+        return codigo
+
+    def despachar_unidad_reservada(self, bus_id: str, ruta_x: str, codigo_reserva: str) -> str:
+        # Precondición: solo se despacha la unidad que tiene esa reserva
+        bus = self.buses[bus_id]
+        if bus["estado"] == "reservada" and bus.get("reserva") == codigo_reserva:
             self.buses[bus_id]["estado"] = "despachada"
             self.buses[bus_id]["ruta"] = ruta_x
             print(f"[ENTORNO] {bus_id} DESPACHADA hacia ruta {ruta_x}.")
             return "despachada"
-        raise ValueError(f"No se puede despachar {bus_id} sin reservarla primero.")
+        raise ValueError(f"No se puede despachar {bus_id} sin la reserva {codigo_reserva}.")
 
     def desplazamiento_hacia_estacion(self, bus_id: str, estacion_x: str) -> None:
         # El bus entra en circulación y evacúa pasajeros en la estación saturada
@@ -75,3 +88,8 @@ class EntornoUrbanoTranscaribe:
             f"[ENTORNO] {bus_id} retenido {tiempo_retencion_x}s "
             f"y velocidad ajustada a {velocidad_objetivo_x} km/h."
         )
+
+    def ajustar_velocidad(self, bus_id: str, velocidad_objetivo_x: int) -> None:
+        # El bus de atrás acelera hasta la velocidad permitida para cerrar el hueco
+        self.buses[bus_id]["velocidad_kmh"] = velocidad_objetivo_x
+        print(f"[ENTORNO] {bus_id} velocidad ajustada a {velocidad_objetivo_x} km/h.")

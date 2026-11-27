@@ -1,0 +1,152 @@
+@startuml
+title Diagrama de clases MAS-ML: SMA para gestión dinámica de oferta y demanda en Transcaribe
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+
+' Colores idénticos al ejemplo del profesor
+skinparam class {
+    BackgroundColor<<organization>> #FDEBD0
+    BorderColor<<organization>> #B9770E
+    BackgroundColor<<environment>> #FCF3CF
+    BorderColor<<environment>> #B7950B
+    BackgroundColor<<agent>> #E8DAEF
+    BorderColor<<agent>> #7D3C98
+    BackgroundColor<<role>> #D4EFDF
+    BorderColor<<role>> #1E8449
+}
+
+class "SistemaTranscaribe" as Org <<organization>> {
+    .. objetivo estratégico ..
+    + Garantizar la movilidad óptima de los pasajeros en toda la red
+    .. objetivos del sistema ..
+    + Equilibrar la oferta de flota con la demanda de pasajeros
+    + Reducir el tiempo de espera de los pasajeros
+    + Mantener la frecuencia óptima de cada ruta
+    + Evitar el agrupamiento de buses
+    + Regular la velocidad de los buses
+    + Aprovechar la capacidad de la flota
+}
+
+class "EntornoUrbanoTranscaribe" as Env <<environment>> {
+    + aforoEstaciones: Entero
+    + tiempoEsperaAnden: Real
+    + flujoCorredores: Real
+    + flotaActiva: Entero
+    + bdTrazabilidad: RegistroHistorico
+}
+
+note right of Env
+  La organización y los cinco agentes
+  habitan EntornoUrbanoTranscaribe (inhabit).
+end note
+
+Org "1" --> "1" Env : inhabit >
+
+' ================= AGENTES =================
+
+class "AgenteMonitorDemandaEstaciones" as Ag1 <<agent>> {
+    - arquitectura: Reactivo basado en modelos
+    - modelo: Detección de personas con cámara inteligente
+    + monitorearFlujoTorniquetes()
+    + contarPasajerosEnAnden()
+    + estimarTiempoEspera()
+    + emitirAlertaCongestion()
+    + solicitarReservaUnidad()
+    + solicitarDespacho()
+}
+
+class "AgenteUnidadVehicular" as Ag2 <<agent>> {
+    - arquitectura: Reactivo basado en modelos
+    + reportarTelemetria()
+    + estimarOcupacionAbordo()
+    + mostrarIndicacionConductor()
+    + alertarCupoCompleto()
+    + detectarRetraso()
+}
+
+class "AgenteReguladorRutaFrecuencias" as Ag3 <<agent>> {
+    - arquitectura: Basado en metas
+    - modelo: Regresión lineal múltiple para la ETA
+    + vigilarIntervalosPaso()
+    + detectarAgrupamiento()
+    + predecirETA()
+    + decidirAjusteVelocidad()
+    + indicarVelocidadObjetivo()
+    + autorizarRetencion()
+    + autorizarSaltoParada()
+}
+
+class "AgenteCoordinadorOperativoMovilidad" as Ag4 <<agent>> {
+    - arquitectura: Basado en utilidad
+    - modelo: Regresión lineal múltiple para la demanda
+    + evaluarEquilibrioRed()
+    + predecirDemanda()
+    + distribuirFlota()
+    + evaluarReserva()
+    + autorizarDespachoReserva()
+    + reasignarFlotaContraflujo()
+    + ajustarTablasFrecuencia()
+}
+
+class "AgenteConductor" as Ag5 <<agent>> {
+    - arquitectura: Basado en metas, agente humano
+    + ajustarVelocidad()
+    + retenerBusEnEstacion()
+    + saltarParada()
+    + reportarIncidenteVia()
+}
+
+' ================= ROLES =================
+
+class "MonitorEstacion" as R1 <<role>> {
+    + duties: medir aforo, estimar espera, reportar estado del andén, alertar congestión
+    + rights: leer sensores, leer cámaras, registrar eventos en la BD
+}
+
+class "MonitorUnidadVehicular" as R2 <<role>> {
+    + duties: reportar telemetría, estimar ocupación, mostrar guías, alertar sobrecupo, alertar retraso
+    + rights: leer instrumentos de la unidad, registrar eventos en la BD
+}
+
+class "ReguladorRuta" as R3 <<role>> {
+    + duties: vigilar intervalos de paso, prevenir agrupamiento, predecir ETA, reportar insuficiencia de ruta
+    + rights: indicar velocidad objetivo, autorizar retención, autorizar salto de parada
+}
+
+class "CoordinadorOperativo" as R4 <<role>> {
+    + duties: equilibrar oferta con demanda, reducir esperas, distribuir flota
+    + rights: autorizar despachos, reasignar flota, modificar frecuencias, consultar BD
+}
+
+class "OperadorUnidadVehicular" as R5 <<role>> {
+    + duties: cumplir velocidad, cumplir retención, cumplir salto de parada, reportar incidentes
+    + rights: consultar instrucciones, rechazar instrucción insegura
+}
+
+' Relaciones de propiedad: la organización es dueña de los roles
+Org *-- R1 : owns
+Org *-- R2 : owns
+Org *-- R3 : owns
+Org *-- R4 : owns
+Org *-- R5 : owns
+
+' Relaciones play: los agentes desempeñan los roles
+Ag1 --> R1 : play
+Ag2 --> R2 : play
+Ag3 --> R3 : play
+Ag4 --> R4 : play
+Ag5 --> R5 : play
+
+' Relaciones de control: quien manda apunta a quien obedece
+R4 --> R3 : control
+R4 --> R5 : control
+R3 --> R5 : control
+
+' Relaciones de dependencia: quien necesita apunta a quien provee
+R4 ..> R1 : dependency
+R3 ..> R1 : dependency
+R3 ..> R2 : dependency
+R5 ..> R2 : dependency
+
+@enduml

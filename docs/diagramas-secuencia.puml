@@ -1,0 +1,136 @@
+' Diagramas de secuencia corregidos según la revisión del profesor (26-nov-2026).
+' Cada mensaje FIPA lleva el id con el que lo imprime el programa (conversation-id + mNN)
+' y su definición completa está en mensajes-fipa.md.
+
+@startuml cu01-gestion-congestion
+title CU-01: Gestión de congestión, reserva previa de flota y despacho a estación
+skinparam shadowing false
+skinparam sequenceMessageAlign left
+skinparam BoxPadding 8
+hide footbox
+
+box "SMA Gestión Dinámica Transcaribe" #LightYellow
+participant "AgenteMonitorDemandaEstaciones\n<<agent>>" as MON
+participant "AgenteCoordinadorOperativoMovilidad\n<<agent>>" as COO
+participant "AgenteReguladorRutaFrecuencias\n<<agent>>" as REG
+participant "AgenteUnidadVehicular\n<<agent>>" as UV
+participant "AgenteConductor\n<<agent>>" as CON
+participant "EntornoUrbanoTranscaribe\n<<environment>>" as ENV
+end box
+
+== 1. Percepción y detección de saturación ==
+activate MON
+MON -> ENV ++ : consultar_estado_estacion(estacion_x)
+ENV --> MON -- : datos_estacion(estacion_x, aforo_x, tiempo_espera_x)
+MON -> MON : evaluarUmbralCongestion(aforo_x, tiempo_espera_x)
+
+alt aforo_x > umbral_x o tiempo_espera_x > 15 min
+  MON -> REG : [m01] INFORM\nalerta_congestion(estacion_x, aforo_x, tiempo_espera_x)
+
+  ... 2. Reserva previa ...
+  MON -> COO ++ : [m02] REQUEST\nreservar_unidad(estacion_x, ruta_x)
+  COO -> COO : evaluarEquilibrioRed(ruta_x)
+  COO -> ENV ++ : buscar_unidad_disponible()
+  ENV --> COO -- : bus_reserva_x | ninguna
+
+  alt hay una unidad disponible en patio
+    COO -> ENV ++ : reservar_unidad_patio(bus_reserva_x)
+    ENV --> COO -- : codigo_reserva_x
+    COO -> MON : [m03] AGREE (in-reply-to m02)\nreserva_confirmada(bus_reserva_x, codigo_reserva_x)
+
+    ... 3. Despacho de la unidad reservada ...
+    MON -> COO : [m04] REQUEST\ndespachar_unidad(bus_reserva_x, codigo_reserva_x, ruta_x, estacion_x)
+    COO -> ENV ++ : despachar_unidad_reservada(bus_reserva_x, ruta_x, codigo_reserva_x)
+    ENV --> COO -- : estado_unidad(bus_reserva_x, despachada)
+    COO -> MON : [m05] AGREE (in-reply-to m04)\ndespacho_aceptado(bus_reserva_x, codigo_reserva_x)
+
+    ... 4. Integración a la ruta y ejecución a bordo ...
+    COO -> REG ++ : [m06] REQUEST\nintegrar_unidad_ruta(bus_reserva_x, ruta_x, estacion_x)
+    REG -> REG : predecirETA(bus_reserva_x, estacion_x) -> eta_x
+    REG -> UV ++ : [m07] REQUEST\nasignar_recorrido_refuerzo(bus_reserva_x, ruta_x, estacion_x, eta_x)
+    UV -> CON ++ : [m08] REQUEST\niniciar_recorrido(bus_reserva_x, estacion_x, ruta_x)
+    CON -> UV : [m09] AGREE (in-reply-to m08)\nrecorrido_aceptado(bus_reserva_x)
+    UV -> REG : [m10] AGREE (in-reply-to m07)\nrecorrido_aceptado(bus_reserva_x)
+    REG -> COO : [m11] AGREE (in-reply-to m06)\nunidad_integrada(bus_reserva_x, ruta_x)
+
+    ... 5. Ejecución física y cierre ...
+    CON -> ENV ++ : desplazamiento_hacia_estacion(bus_reserva_x, estacion_x)
+    ENV --> CON -- : ok
+    CON -> UV -- : [m12] INFORM-DONE (in-reply-to m08)\ndesplazamiento_iniciado(bus_reserva_x, estacion_x)
+    UV -> REG -- : [m13] INFORM-DONE (in-reply-to m07)\nbus_en_ruta(bus_reserva_x, estacion_x)
+    REG -> COO -- : [m14] INFORM-DONE (in-reply-to m06)\nrefuerzo_activo(bus_reserva_x, ruta_x)
+    COO -> MON : [m15] INFORM-DONE (in-reply-to m04)\ndespacho_completado(bus_reserva_x, estacion_x)
+  else no hay unidad disponible
+    COO -> MON : [m03] REFUSE (in-reply-to m02)\nreserva_rechazada(estacion_x, sin_unidad_disponible)
+    note over MON, COO : Sin reserva no hay despacho:\nla conversación termina aquí.
+  end
+  deactivate COO
+else dentro del umbral
+  note over MON : No se envía ningún mensaje.
+end
+deactivate MON
+@enduml
+
+@startuml cu02-regulacion-frecuencias
+title CU-02: Regulación de frecuencias, prevención de agrupamiento y respaldo con reserva
+skinparam shadowing false
+skinparam sequenceMessageAlign left
+skinparam BoxPadding 8
+hide footbox
+
+box "SMA Gestión Dinámica Transcaribe" #LightCyan
+participant "AgenteUnidadVehicular\n<<agent>>" as UV
+participant "AgenteConductor\n<<agent>>" as CON
+participant "AgenteReguladorRutaFrecuencias\n<<agent>>" as REG
+participant "AgenteMonitorDemandaEstaciones\n<<agent>>" as MON
+participant "AgenteCoordinadorOperativoMovilidad\n<<agent>>" as COO
+participant "EntornoUrbanoTranscaribe\n<<environment>>" as ENV
+end box
+
+== 1. Telemetría y evaluación del intervalo ==
+activate UV
+UV -> ENV ++ : consultar_telemetria_bus(bus_delantero_x)
+ENV --> UV -- : posicion_d_x, velocidad_d_x
+UV -> REG ++ : [m01] INFORM\nreportar_telemetria(bus_delantero_x, ruta_x, posicion_d_x, velocidad_d_x)
+UV -> ENV ++ : consultar_telemetria_bus(bus_x)
+ENV --> UV -- : posicion_x, velocidad_x
+UV -> REG : [m02] INFORM\nreportar_telemetria(bus_x, ruta_x, posicion_x, velocidad_x)
+REG -> REG : intervalo_x = posicion_d_x - posicion_x\ndecidirAjuste(intervalo_x, intervalo_min, intervalo_max)
+
+alt intervalo_x < intervalo_min (riesgo de agrupamiento)
+  REG -> UV : [m03] REQUEST\najustar_marcha(bus_x, bajar, velocidad_objetivo_x, tiempo_retencion_x, estacion_x)
+  UV -> CON ++ : [m04] REQUEST\nretener_y_bajar_velocidad(bus_x, tiempo_retencion_x, velocidad_objetivo_x)
+  CON -> UV : [m05] AGREE (in-reply-to m04)\nmaniobra_segura_aceptada(bus_x)
+  UV -> REG : [m06] AGREE (in-reply-to m03)\ninstruccion_aceptada(bus_x)
+  CON -> ENV ++ : retener_bus_y_ajustar_velocidad(bus_x, tiempo_retencion_x, velocidad_objetivo_x)
+  ENV --> CON -- : ok
+  CON -> UV -- : [m07] INFORM-DONE (in-reply-to m04)\nse_detuvo_en_estacion_y_bajo_velocidad(bus_x)
+  UV -> REG : [m08] INFORM-DONE (in-reply-to m03)\nintervalo_restablecido(bus_x, ruta_x)
+else intervalo_x > intervalo_max (hueco largo)
+  REG -> UV : [m03] REQUEST\najustar_marcha(bus_x, subir, velocidad_objetivo_x)
+  UV -> CON ++ : [m04] REQUEST\nsubir_velocidad(bus_x, velocidad_objetivo_x)
+  CON -> UV : [m05] AGREE (in-reply-to m04)\nmaniobra_segura_aceptada(bus_x)
+  UV -> REG : [m06] AGREE (in-reply-to m03)\ninstruccion_aceptada(bus_x)
+  CON -> ENV ++ : ajustar_velocidad(bus_x, velocidad_objetivo_x)
+  ENV --> CON -- : ok
+  CON -> UV -- : [m07] INFORM-DONE (in-reply-to m04)\nsubio_velocidad(bus_x)
+  UV -> REG : [m08] INFORM-DONE (in-reply-to m03)\nintervalo_restablecido(bus_x, ruta_x)
+else intervalo_min <= intervalo_x <= intervalo_max
+  note over REG : Se mantiene la velocidad:\nno se envía instrucción.
+end
+deactivate REG
+deactivate UV
+
+== 2. Impacto en la demanda y respaldo con reserva ==
+activate MON
+MON -> ENV ++ : consultar_estado_estacion(estacion_y)
+ENV --> MON -- : datos_estacion(estacion_y, aforo_y, tiempo_espera_y)
+alt aforo_y > umbral_y o tiempo_espera_y > 15 min
+  MON -> REG : [m01] INFORM\naumento_aforo(estacion_y, aforo_y)
+  MON -> COO : [m02] INFORM\nalerta_demanda_acumulada(estacion_y, aforo_y, tiempo_espera_y)
+  ref over MON, COO, ENV : Protocolo de reserva previa y despacho (igual que CU-01, pasos 2 y 3):\n[m03] REQUEST reservar_unidad -> [m04] AGREE | REFUSE -> [m05] REQUEST despachar_unidad(bus_apoyo_x, codigo_reserva_x) -> [m06] AGREE
+  COO -> REG ++ : [m07] REQUEST\ncoordinar_ingreso_apoyo(bus_apoyo_x, ruta_x, estacion_y)
+  REG -> COO -- : [m08] INFORM-DONE (in-reply-to m07)\nfrecuencia_cubierta(bus_apoyo_x, ruta_x)
+end
+deactivate MON
+@enduml

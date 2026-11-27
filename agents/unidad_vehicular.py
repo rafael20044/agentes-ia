@@ -39,9 +39,9 @@ class AgenteUnidadVehicular(AgenteBase):
         )
 
     def reportar_telemetria(self, bus_id: str, ruta: str) -> dict[str, Any]:
-        # Lee GPS y velocidad del bus en el entorno para enviárselos al Regulador
+        # Lee GPS y velocidad del bus en el entorno y se los informa al Regulador
         telemetria = self.entorno.consultar_telemetria_bus(bus_id)
-        return self.enviar_mensaje(
+        self.enviar_mensaje(
             receiver="AgenteReguladorRutaFrecuencias",
             performative=Performativa.INFORM,
             protocol=ProtocoloFIPA.INFORM,
@@ -50,22 +50,24 @@ class AgenteUnidadVehicular(AgenteBase):
                 f"posicion={telemetria['posicion_gps']}, velocidad={telemetria['velocidad_kmh']} km/h."
             ),
         )
+        return telemetria
 
-    def solicitar_retencion_conductor(
-        self,
-        bus_id: str,
-        estacion: str,
-        tiempo_retencion: int,
-        velocidad_objetivo: int,
+    def solicitar_ajuste_conductor(
+        self, bus_id: str, estacion: str, decision: dict[str, Any]
     ) -> dict[str, Any]:
+        # Muestra la instrucción en la consola del conductor y le pide ejecutarla
+        if decision["accion"] == "bajar":
+            orden = (
+                f"retener el bus {decision['tiempo_retencion']}s en {estacion} "
+                f"y bajar la velocidad a {decision['velocidad_objetivo']} km/h"
+            )
+        else:
+            orden = f"subir la velocidad a {decision['velocidad_objetivo']} km/h"
         return self.enviar_mensaje(
             receiver="AgenteConductor",
             performative=Performativa.REQUEST,
             protocol=ProtocoloFIPA.REQUEST,
-            instruccion=(
-                f"Solicita ejecutar retención de {tiempo_retencion}s en {estacion} "
-                f"y bajar velocidad a {velocidad_objetivo} km/h en {bus_id}."
-            ),
+            instruccion=f"Solicita al conductor de {bus_id}: {orden}.",
         )
 
     def confirmar_regulacion_aceptada(self, bus_id: str) -> dict[str, Any]:

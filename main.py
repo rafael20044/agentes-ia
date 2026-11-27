@@ -1,5 +1,6 @@
 """Punto de entrada y composición de capas del Sistema Multiagente Transcaribe."""
 
+import argparse
 import json
 
 from agents import (
@@ -17,6 +18,14 @@ from use_cases import ejecutar_cu01, ejecutar_cu02
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Simulación del SMA Transcaribe")
+    parser.add_argument(
+        "--patio-sin-unidades",
+        action="store_true",
+        help="Deja el patio sin buses disponibles para ver la rama de rechazo (refuse) de la reserva.",
+    )
+    args = parser.parse_args()
+
     # 1. Capa de Infraestructura: cliente Gemini y persistencia de mensajes
     llm_client = GeminiLLMClient()
     trazabilidad = BaseDatosTrazabilidad()
@@ -26,6 +35,10 @@ def main() -> None:
 
     # 3. Capa de Entorno Compartido: estado físico de estaciones y buses
     entorno = EntornoUrbanoTranscaribe()
+    if args.patio_sin_unidades:
+        for datos_bus in entorno.buses.values():
+            if datos_bus["ruta"] == "Patio":
+                datos_bus["estado"] = "en_mantenimiento"
 
     # 4. Capa de Agentes: inyección del mismo entorno y bus en los 5 agentes
     monitor = AgenteMonitorDemandaEstaciones(entorno=entorno, bus=bus_fipa)

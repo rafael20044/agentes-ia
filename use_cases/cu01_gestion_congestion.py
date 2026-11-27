@@ -7,6 +7,7 @@ from agents import (
     AgenteReguladorRutaFrecuencias,
     AgenteUnidadVehicular,
 )
+from use_cases.protocolo_reserva import reservar_y_despachar
 
 
 def ejecutar_cu01(
@@ -23,7 +24,7 @@ def ejecutar_cu01(
     # Escenario sobre la troncal T101 en Estación Bazurto
     estacion_x = "Estacion_Bazurto"
     ruta_x = "T101"
-    bus_reserva_x = "Bus_Reserva_01"
+    monitor.bus.iniciar_conversacion("cu01-bazurto")
 
     # 1. Percepción del entorno y detección de saturación
     datos = monitor.percibir_estacion(estacion_x)
@@ -34,11 +35,12 @@ def ejecutar_cu01(
     monitor.notificar_alerta_congestion(
         estacion_x, datos["aforo"], datos["tiempo_espera_min"]
     )
-    monitor.solicitar_refuerzo(estacion_x, ruta_x)
 
-    # 2. Reserva y posterior despacho desde patio
-    coordinador.reservar_y_despachar_unidad(bus_reserva_x, ruta_x)
-    coordinador.confirmar_reserva_y_despacho(bus_reserva_x, estacion_x)
+    # 2. Reserva previa y despacho (si no hay unidad, el Coordinador rechaza y el caso termina)
+    resultado = reservar_y_despachar(monitor, coordinador, estacion_x, ruta_x)
+    if resultado is None:
+        return
+    bus_reserva_x, _ = resultado
 
     # 3. Integración a ruta y ejecución a bordo
     coordinador.solicitar_integracion_ruta(bus_reserva_x, ruta_x, estacion_x)
