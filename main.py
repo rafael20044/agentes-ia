@@ -31,7 +31,7 @@ def main() -> None:
     trazabilidad = BaseDatosTrazabilidad()
 
     # 2. Capa de Comunicación: bus que valida el formato FIPA-ACL
-    bus_fipa = BusMensajesFIPA(llm_client=llm_client, trazabilidad=trazabilidad)
+    bus_fipa = BusMensajesFIPA(llm_client=llm_client, trazabilidad=trazabilidad)    
 
     # 3. Capa de Entorno Compartido: estado físico de estaciones y buses
     entorno = EntornoUrbanoTranscaribe()
